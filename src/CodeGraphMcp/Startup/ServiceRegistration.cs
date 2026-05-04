@@ -34,6 +34,7 @@ public static class ServiceRegistration
 
         services.AddSingleton<RepositoryScanner>();
         services.AddSingleton<NodeProcessRunner>();
+        services.AddSingleton<RegexParser>();
 
         // Register all parsers
         services.AddSingleton<ILanguageParser, CSharpParser>();
@@ -43,6 +44,26 @@ public static class ServiceRegistration
         services.AddSingleton<ILanguageParser, AngularParser>();
         services.AddSingleton<ILanguageParser, ProjectFileParser>();
         services.AddSingleton<ILanguageParser, MarkdownParser>();
+
+        // Regex-based parsers for additional languages
+        services.AddSingleton<ILanguageParser, JavaParser>();
+        services.AddSingleton<ILanguageParser, KotlinParser>();
+        services.AddSingleton<ILanguageParser, SwiftParser>();
+        services.AddSingleton<ILanguageParser, CParser>();
+        services.AddSingleton<ILanguageParser, CppParser>();
+        services.AddSingleton<ILanguageParser, ObjectiveCParser>();
+        services.AddSingleton<ILanguageParser, PhpParser>();
+        services.AddSingleton<ILanguageParser, GoParser>();
+        services.AddSingleton<ILanguageParser, RustParser>();
+        services.AddSingleton<ILanguageParser, PythonParser>();
+        services.AddSingleton<ILanguageParser, RubyParser>();
+        services.AddSingleton<ILanguageParser, DartParser>();
+        services.AddSingleton<ILanguageParser, SqlParser>();
+        services.AddSingleton<ILanguageParser, HtmlParser>();
+        services.AddSingleton<ILanguageParser, CssParser>();
+        services.AddSingleton<ILanguageParser, ScssParser>();
+        services.AddSingleton<ILanguageParser, ShellParser>();
+        services.AddSingleton<ILanguageParser, YamlParser>();
 
         services.AddSingleton<GraphOrchestrator>();
         services.AddSingleton<FileChangeWatcher>();

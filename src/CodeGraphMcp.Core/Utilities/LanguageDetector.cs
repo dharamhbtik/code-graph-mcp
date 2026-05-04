@@ -6,18 +6,66 @@ public static class LanguageDetector
 {
     private static readonly Dictionary<string, Language> _map = new(StringComparer.OrdinalIgnoreCase)
     {
-        [".cs"]     = Language.CSharp,
-        [".xaml"]   = Language.Xaml,
-        [".js"]     = Language.JavaScript,
-        [".mjs"]    = Language.JavaScript,
-        [".cjs"]    = Language.JavaScript,
-        [".ts"]     = Language.TypeScript,
-        [".tsx"]    = Language.TypeScript,
-        [".json"]   = Language.Json,
-        [".sql"]    = Language.Sql,
-        [".md"]     = Language.Markdown,
-        [".csproj"] = Language.ProjectFile,
-        [".sln"]    = Language.ProjectFile,
+        // .NET
+        [".cs"]      = Language.CSharp,
+        [".xaml"]    = Language.Xaml,
+
+        // JVM
+        [".java"]    = Language.Java,
+        [".kt"]      = Language.Kotlin,
+        [".kts"]     = Language.Kotlin,
+
+        // Apple
+        [".swift"]   = Language.Swift,
+        [".m"]       = Language.ObjectiveC,
+        [".mm"]      = Language.ObjectiveC,
+        [".h"]       = Language.C,           // Could be C, C++, or Obj-C — default to C
+
+        // Systems
+        [".c"]       = Language.C,
+        [".cpp"]     = Language.Cpp,
+        [".cxx"]     = Language.Cpp,
+        [".cc"]      = Language.Cpp,
+        [".hpp"]     = Language.Cpp,
+        [".hxx"]     = Language.Cpp,
+
+        // Web / JS ecosystem
+        [".js"]      = Language.JavaScript,
+        [".mjs"]     = Language.JavaScript,
+        [".cjs"]     = Language.JavaScript,
+        [".jsx"]     = Language.JavaScript,
+        [".ts"]      = Language.TypeScript,
+        [".tsx"]     = Language.TypeScript,
+
+        // Server-side
+        [".php"]     = Language.Php,
+        [".go"]      = Language.Go,
+        [".rs"]      = Language.Rust,
+        [".py"]      = Language.Python,
+        [".rb"]      = Language.Ruby,
+        [".dart"]    = Language.Dart,
+
+        // Data / Config
+        [".json"]    = Language.Json,
+        [".sql"]     = Language.Sql,
+        [".yaml"]    = Language.Yaml,
+        [".yml"]     = Language.Yaml,
+
+        // Markup / Style
+        [".md"]      = Language.Markdown,
+        [".html"]    = Language.Html,
+        [".htm"]     = Language.Html,
+        [".css"]     = Language.Css,
+        [".scss"]    = Language.Scss,
+
+        // Shell
+        [".sh"]      = Language.Shell,
+        [".bash"]    = Language.Shell,
+        [".zsh"]     = Language.Shell,
+
+        // Project files
+        [".csproj"]  = Language.ProjectFile,
+        [".sln"]     = Language.ProjectFile,
     };
 
     public static Language Detect(string filePath)
