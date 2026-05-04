@@ -1,0 +1,6 @@
+.codegraph/
+*.db
+*.db-wal
+*.db-shm
+bin/
+obj/

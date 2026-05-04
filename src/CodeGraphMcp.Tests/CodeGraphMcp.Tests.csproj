@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="FluentAssertions" Version="6.12.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CodeGraphMcp.Core\CodeGraphMcp.Core.csproj" />
+    <ProjectReference Include="..\CodeGraphMcp\CodeGraphMcp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exclude fixture source files from compilation — they are test data, not project code -->
+    <Compile Remove="Fixtures\SampleRepo\**\*.cs" />
+    <Content Include="Fixtures\SampleRepo\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="Fixtures\SampleRepo" />
+  </ItemGroup>
+</Project>
