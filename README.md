@@ -402,6 +402,61 @@ AI: *calls GetSystemPrompt* (3,500 tokens → knows entire repo structure)
 
 ---
 
+## 💡 Prompting Guide & Best Practices
+
+Once you have configured CodeGraphMcp with your AI editor (Cursor, Copilot, Claude), you can use it to perform complex, repository-wide tasks without blowing up your token limits. Here are the best ways to prompt the AI using the graph.
+
+### 1. The "Start of Conversation" Anchor
+Always give the AI the bird's-eye view first. This allows it to understand the architecture before writing a single line of code.
+
+**Prompt:**
+> "Please call the `GetSystemPrompt` tool to understand the structure of this repository. I want to build a new feature."
+
+*Why it works:* `GetSystemPrompt` returns a compact (~4,000 token) index of your entry points, file map, and core symbols. The AI instantly learns your naming conventions, what languages are used, and where the core modules live.
+
+### 2. Large-Scale Refactoring & Migrations (e.g., Xamarin to MAUI)
+When migrating codebases, the AI needs to know how UI views map to logic, and where platform-specific code lives.
+
+**Prompt:**
+> "We are migrating this app from Xamarin.Forms to .NET MAUI.
+> 1. Use `GetCodeGraph` to find all XAML files and their corresponding ViewModels.
+> 2. Use `GetFileContext` on `App.xaml.cs` to trace the dependency injection setup.
+> 3. Generate a migration plan mapping the old `DependencyService` calls to the new MAUI `MauiProgram.cs` DI container."
+
+*Why it works:* Instead of opening 30 files manually, the AI queries the graph for `binds` edges (View ↔ ViewModel) and `dependsOn` edges, allowing it to accurately update references.
+
+### 3. Adding a New Feature (Vertical Slice)
+When adding a feature that touches the database, API, and UI.
+
+**Prompt:**
+> "I need to add a 'User Profile' feature. 
+> Use `GetSymbol` to find the `UserRepository` interface and the `UserController`. 
+> Then, use `GetFileContext` to see what services the `UserController` depends on. 
+> Finally, write the code for the new `UpdateProfile` endpoint, ensuring you follow the existing dependency injection patterns."
+
+*Why it works:* `GetSymbol` instantly locates the files regardless of folder structure. The AI sees the edges attached to `UserController` and knows exactly which services to inject.
+
+### 4. Debugging Cross-Module Issues
+When a bug spans multiple files (e.g., an event fired in the UI but handled in a background service).
+
+**Prompt:**
+> "There is a bug where the 'Order Placed' event is not updating the inventory. 
+> 1. Use `GetSymbol` to find the `OrderPlacedEvent`.
+> 2. Look at the edges to see what classes implement or handle this event.
+> 3. Read the relevant files and suggest a fix."
+
+*Why it works:* The graph contains `references` and `implements` edges. The AI doesn't need to text-search the entire repo; it simply traverses the graph from the Event node to the Handler node.
+
+### 5. Onboarding to a New Codebase
+When you join a new project and need to understand the flow.
+
+**Prompt:**
+> "I am new to this codebase. Use `GetCodeGraph` and `GetSystemPrompt` to analyze the architecture. Give me a 5-bullet summary of how the frontend communicates with the backend, and list the top 3 most important classes I should read first."
+
+*Why it works:* CodeGraphMcp ranks nodes by connectivity (number of edges). The AI easily identifies the core orchestration classes and controllers without blindly reading utility files.
+
+---
+
 ## 📦 NuGet Dependencies
 
 | Package | Version | Project |
