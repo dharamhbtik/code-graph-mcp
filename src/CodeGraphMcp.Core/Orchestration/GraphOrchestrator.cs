@@ -26,14 +26,13 @@ public sealed class GraphOrchestrator(
         logger.LogInformation("Full graph build starting for {Root}", rootPath);
 
         var files = await scanner.ScanAsync(rootPath, ct);
-        var semaphore = new SemaphoreSlim(8);
 
-        await Parallel.ForEachAsync(files, ct, async (file, innerCt) =>
-        {
-            await semaphore.WaitAsync(innerCt);
-            try { await ParseAndUpsert(file.FilePath, innerCt); }
-            finally { semaphore.Release(); }
-        });
+        await Parallel.ForEachAsync(files,
+            new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+            async (file, innerCt) =>
+            {
+                await ParseAndUpsert(file.FilePath, innerCt);
+            });
 
         var (n, e) = store.GetStats();
         logger.LogInformation(
@@ -68,7 +67,7 @@ public sealed class GraphOrchestrator(
 
         var result = await parser.ParseAsync(filePath, ct);
 
-        foreach (var node in result.Nodes) store.UpsertNode(node);
-        foreach (var edge in result.Edges) store.UpsertEdge(edge);
+        // Use BulkUpsert to batch all nodes+edges in a single transaction
+        store.BulkUpsert(result.Nodes, result.Edges);
     }
 }
