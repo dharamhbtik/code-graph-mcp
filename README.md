@@ -148,6 +148,11 @@ Returns a compact markdown context block describing the repository — key entry
 
 **Use case:** Give every AI conversation baseline knowledge of the repository structure without burning tokens.
 
+### `GenerateDesignDocument`
+Generates a markdown document containing Mermaid diagrams (`class` or `flow`) to help visualize the codebase architecture, inheritance, and dependency chains.
+
+**Use case:** Ask the AI to "generate a sequence diagram", "create a class diagram", or "draw a call graph" for a specific feature. The AI will output a renderable Mermaid chart mapping the exact dependencies.
+
 ---
 
 ## 🗣️ Supported Languages
@@ -191,6 +196,10 @@ Returns a compact markdown context block describing the repository — key entry
 
 ## 🔌 Client Configuration
 
+The best way to use CodeGraphMcp is to download the standalone executable for your OS (Windows `.exe`, macOS, Linux) from the [Releases page](../../releases). **Using the standalone binary does not require the .NET SDK.**
+
+If you are using the downloaded executable, the `command` is simply the path to the executable file, and `args` is the path to the codebase.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
@@ -199,21 +208,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "codegraph": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "/absolute/path/to/src/CodeGraphMcp",
-        "--",
-        "/absolute/path/to/your/repo"
-      ],
+      "command": "/absolute/path/to/CodeGraphMcp",
+      "args": ["/absolute/path/to/your/repo"],
       "env": {}
     }
   }
 }
 ```
 
-For production, use the published binary:
+*(If building from source, set `command` to `"dotnet"` and `args` to `["run", "--project", "/path/to/src/CodeGraphMcp", "--", "/path/to/repo"]`)*
 
 ```json
 {
@@ -235,14 +238,8 @@ Place `.cursor/mcp.json` in the root of the repository Cursor has open:
 {
   "mcpServers": {
     "codegraph": {
-      "command": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "/absolute/path/to/src/CodeGraphMcp",
-        "--",
-        "${workspaceFolder}"
-      ]
+      "command": "/absolute/path/to/CodeGraphMcp",
+      "args": ["${workspaceFolder}"]
     }
   }
 }
@@ -257,28 +254,7 @@ GitHub Copilot supports MCP servers via the VS Code MCP extension. Add to your V
   "mcp": {
     "servers": {
       "codegraph": {
-        "command": "dotnet",
-        "args": [
-          "run",
-          "--project",
-          "/absolute/path/to/src/CodeGraphMcp",
-          "--",
-          "${workspaceFolder}"
-        ]
-      }
-    }
-  }
-}
-```
-
-Or use the published binary:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "codegraph": {
-        "command": "/absolute/path/to/publish/CodeGraphMcp",
+        "command": "/absolute/path/to/CodeGraphMcp",
         "args": ["${workspaceFolder}"]
       }
     }
@@ -287,6 +263,26 @@ Or use the published binary:
 ```
 
 > **Tip:** After configuring, Copilot Chat will automatically discover the MCP tools. You can ask it to use `GetSystemPrompt` at the start of conversations for instant repository context.
+
+### Visual Studio (2022 and 2026)
+
+Visual Studio 2022 (v17.13+) and Visual Studio 2026 have built-in support for MCP tools in GitHub Copilot. 
+
+1. Go to **Tools > Options > GitHub > Copilot > MCP Servers** (or edit `mcp.json` in your VS configuration).
+2. Add the CodeGraphMcp server:
+
+```json
+{
+  "mcpServers": {
+    "codegraph": {
+      "command": "C:\\path\\to\\CodeGraphMcp.exe",
+      "args": ["${workspaceFolder}"]
+    }
+  }
+}
+```
+
+3. Open the Copilot Chat window and ask it to analyze your solution using the CodeGraph tools.
 
 ### Windsurf / Cline / Other MCP Clients
 
