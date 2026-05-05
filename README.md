@@ -1,121 +1,102 @@
 # CodeGraphMcp
 
-A local **MCP (Model Context Protocol) server** written in .NET 10 that scans code repositories, builds a **code graph** of symbols and relationships, and exposes it to AI agents (Claude, Cursor, GitHub Copilot) via MCP tool endpoints.
+A local MCP server written in .NET 10 that scans code repositories, builds a code graph of symbols and relationships, and exposes it to AI agents (Claude, Cursor, GitHub Copilot) via tool endpoints.
 
-> **Stop feeding your entire codebase to AI.** CodeGraphMcp replaces 200K+ tokens of raw source code with a structured 4K–80K token graph that gives AI editors a complete understanding of your repository architecture, dependencies, and symbol relationships.
+> Instead of feeding your entire codebase to an AI — hundreds of thousands of tokens — CodeGraphMcp gives it a structured 4K–80K token graph. The AI gets the same understanding at a fraction of the cost.
 
 ---
 
-## 🧠 How It Reduces Token Usage
+## Why this exists
 
-### The Problem
+AI coding assistants have a problem. When they try to understand your codebase, they either read every file (slow, expensive, often exceeds context limits) or read nothing and guess (wrong imports, broken suggestions, missed dependencies).
 
-When AI coding assistants (Claude, Cursor, Copilot) try to understand your codebase, they have two options:
-
-1. **Read every file** — Feeding a 500-file repository to an AI consumes 200,000–500,000+ tokens per request. This is slow, expensive, and often exceeds context windows.
-2. **Read nothing** — The AI guesses about your code structure, leading to incorrect assumptions, wrong imports, and broken code suggestions.
-
-### The Solution
-
-CodeGraphMcp creates a **structured code graph** — a compact representation of your entire repository that captures *what matters*:
+CodeGraphMcp sits in the middle. It parses your repository once, extracts the structure — classes, interfaces, functions, inheritance, imports, calls — and stores it as a compact graph. The AI queries this graph instead of reading raw source files.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  500 files × ~400 tokens each = ~200,000 tokens (raw source)    │
-│                           ↓                                      │
-│  CodeGraphMcp extracts:                                          │
-│  • 250 nodes (classes, functions, interfaces, modules)           │
-│  • 180 edges (imports, inherits, calls, references)              │
-│                           ↓                                      │
-│  Compact graph JSON = ~8,000 tokens (96% reduction)              │
-│  System prompt     = ~3,500 tokens (98% reduction)               │
-└──────────────────────────────────────────────────────────────────┘
+500 files × ~400 tokens each = ~200,000 tokens (raw source)
+
+CodeGraphMcp extracts:
+  250 nodes (classes, functions, interfaces, modules)
+  180 edges (imports, inherits, calls, references)
+
+Compact graph = ~8,000 tokens (96% reduction)
+System prompt = ~3,500 tokens (98% reduction)
 ```
 
-### What the AI Gets
-
-Instead of raw source code, the AI receives a structured understanding:
+What the AI gets from the graph vs. reading files directly:
 
 | Information | Without CodeGraphMcp | With CodeGraphMcp |
 |-------------|---------------------|-------------------|
 | File structure | Must read every file | Instant file map with symbol counts |
 | Class hierarchy | Must trace inheritance across files | Direct `inherits` / `implements` edges |
 | Dependencies | Must read import statements | Pre-computed `imports` / `dependsOn` graph |
-| Entry points | Must guess | Top 5 most-connected nodes, ranked |
+| Entry points | Must guess | Top 8 most-connected nodes, ranked |
 | Symbol locations | Must search | Exact file + line number for every symbol |
-| XAML ↔ ViewModel bindings | Must infer naming conventions | Explicit `binds` edges |
+| XAML bindings | Must infer naming conventions | Explicit `binds` edges |
 | Total tokens | 200,000+ | 4,000–80,000 |
 
-### Token Budget Modes
+The token budget adapts automatically:
 
-CodeGraphMcp automatically adapts to your token budget:
-
-| Mode | Tokens | What's Included |
+| Mode | Tokens | What's included |
 |------|--------|-----------------|
-| **System Prompt** | ~4,000 | File map, key entry points, symbol index — perfect for initial context |
-| **Full Graph** | ~8,000–80,000 | Complete node + edge graph — for deep code understanding |
-| **Compressed** | ~2,000–4,000 | Auto-triggered when full graph exceeds budget — file list + top edges only |
+| System Prompt | ~4,000 | File map, entry points, symbol index |
+| Full Graph | ~8,000–80,000 | Complete node + edge graph |
+| Compressed | ~2,000–4,000 | Auto-triggered when full graph exceeds budget |
 
-### Real-World Token Savings
+Rough savings by repo size:
 
-| Repository Size | Raw Source Tokens | CodeGraphMcp Tokens | Reduction |
-|----------------|-------------------|---------------------|-----------|
-| 50 files | ~20,000 | ~2,000 | **90%** |
-| 200 files | ~80,000 | ~5,000 | **94%** |
-| 500 files | ~200,000 | ~12,000 | **94%** |
-| 1,000 files | ~400,000 | ~25,000 | **94%** |
-| 5,000 files | ~2,000,000 | ~80,000 (capped) | **96%** |
-
----
-
-## ✨ Features
-
-- **30+ language support** — C#, Java, Kotlin, Swift, C, C++, Objective-C, PHP, Go, Rust, Python, Ruby, Dart, JavaScript, TypeScript, Angular, XAML, SQL, Markdown, HTML, CSS/SCSS, YAML, Shell, and project files
-- **Code graph construction** — Nodes (files, classes, methods, functions, interfaces, structs, enums) and edges (calls, imports, inherits, implements, references, binds)
-- **SQLite storage** — Persistent, fast graph storage with WAL mode for concurrent access
-- **Real-time file watching** — Automatically detects file changes and incrementally patches the graph (800ms debounce)
-- **5 MCP tool endpoints** — Query the repository structure from any MCP-compatible AI agent
-- **System prompt builder** — Generates a compact, token-budgeted context block for AI agents
-- **Self-contained binaries** — Publish for Linux, macOS, or Windows without requiring .NET runtime
+| Repository | Raw tokens | Graph tokens | Reduction |
+|------------|-----------|-------------|-----------|
+| 50 files | ~20,000 | ~2,000 | 90% |
+| 200 files | ~80,000 | ~5,000 | 94% |
+| 500 files | ~200,000 | ~12,000 | 94% |
+| 1,000 files | ~400,000 | ~25,000 | 94% |
+| 5,000 files | ~2,000,000 | ~80,000 (capped) | 96% |
 
 ---
 
-## 📋 Requirements
+## Features
+
+- 30+ languages — C#, Java, Kotlin, Swift, C/C++, Objective-C, PHP, Go, Rust, Python, Ruby, Dart, JS/TS, Angular, XAML, SQL, Markdown, HTML, CSS/SCSS, YAML, Shell, project files
+- Graph construction — nodes (files, classes, methods, interfaces, structs, enums) and edges (calls, imports, inherits, implements, references, binds)
+- SQLite storage with WAL mode for concurrent access
+- Real-time file watching with 800ms debounce for incremental updates
+- 5 MCP tool endpoints for querying the graph
+- System prompt builder (4K token budget)
+- Self-contained binaries for Linux, macOS, and Windows
+
+---
+
+## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [Node.js](https://nodejs.org/) (optional — only needed for JS/TS/Angular parsing with tree-sitter)
+- [Node.js](https://nodejs.org/) — optional, only needed for JS/TS/Angular parsing
 
 ---
 
-## 🚀 Quick Start
+## Getting started
 
-### Build
+Build:
 
 ```bash
 dotnet build CodeGraphMcp.sln
 ```
 
-### Run
+Run against any repository:
 
 ```bash
-# Point it at any code repository
 dotnet run --project src/CodeGraphMcp -- /path/to/your/repo
 ```
 
-The server will:
-1. Scan the repository for tracked files across all supported languages
-2. Parse each file and build the code graph (nodes + edges)
-3. Store the graph in `.codegraph/graph.db` (SQLite)
-4. Start the MCP server on stdio
-5. Watch for file changes and update the graph incrementally
+This will scan the repository, parse all supported files, store the graph in `.codegraph/graph.db`, start the MCP server on stdio, and begin watching for file changes.
 
-### Test
+Run tests:
 
 ```bash
 dotnet test CodeGraphMcp.sln
 ```
 
-### Publish (Production)
+Publish a standalone binary:
 
 ```bash
 dotnet publish src/CodeGraphMcp -c Release -o ./publish
@@ -124,81 +105,84 @@ dotnet publish src/CodeGraphMcp -c Release -o ./publish
 
 ---
 
-## 🔧 MCP Tools
+## MCP Tools
 
-The server exposes five tools via the MCP protocol:
+The server exposes five tools over the MCP protocol.
 
 ### `GetCodeGraph`
-Returns the full repository code graph as compact JSON. Supports a `maxTokens` budget parameter (default 80,000). If the graph exceeds the budget, it automatically returns a **compressed summary** that preserves type nodes (classes, interfaces, methods) with relative paths and human-readable edge names — not just a file list.
 
-**Use case:** Give the AI a complete structural understanding of the codebase in one call.
+Returns the full code graph as JSON. Takes an optional `maxTokens` parameter (default 80,000). When the graph exceeds the budget, it returns a compressed summary that still includes type nodes (classes, interfaces, methods) with relative paths and readable edge names — not just a bare file list.
+
+Useful for giving the AI a complete structural overview in a single call.
 
 ### `GetFileContext`
-Returns all nodes and edges for a specific file path, with BFS traversal up to `hopDepth` hops away (default 2). **Accepts both relative and absolute paths.** Returns full details of connected nodes (not just IDs), grouped by kind, with human-readable relationship descriptions. Uses batch SQL queries for performance.
 
-**Use case:** When the AI is about to edit a file, give it full context of what that file connects to.
+Returns all symbols and relationships for a specific file, with BFS traversal up to `hopDepth` hops away (default 2). Accepts both relative and absolute paths. Connected nodes come back with full details — names, kinds, paths — grouped by type. Uses batch SQL queries internally so it stays fast even on large graphs.
+
+Useful when the AI is about to edit a file and needs to understand what it connects to.
 
 ### `GetSymbol`
-Searches for a symbol by name (partial match, case-insensitive) and returns definitions, file locations, incoming/outgoing connections with resolved names, and accurate code snippets covering the full symbol definition (capped at 30 lines).
 
-**Use case:** The AI needs to find where a class, function, or interface is defined and what depends on it.
+Searches by name (partial match, case-insensitive) and returns definitions, locations, incoming/outgoing connections with resolved names, and code snippets covering the full symbol definition (capped at 30 lines).
+
+Useful for finding where something is defined and what depends on it.
 
 ### `GetSystemPrompt`
-Returns a compact markdown context block describing the repository — key entry points (ranked by total connectivity), key dependency chains (inheritance/implements), file map, and symbol index — within a 4,000 token budget.
 
-**Use case:** Give every AI conversation baseline knowledge of the repository structure without burning tokens.
+Returns a compact markdown block — entry points ranked by connectivity, key dependency chains (inheritance, implements), file map, symbol index — all within a 4,000 token budget.
+
+Useful as the opening context for any AI conversation about the codebase.
 
 ### `GenerateDesignDocument`
-Generates a markdown document containing valid Mermaid diagrams (`class` or `flow`) to visualize codebase architecture, inheritance, and dependency chains. Prefers concrete implementations over interfaces when selecting root nodes, sanitizes all labels for valid Mermaid syntax, and auto-selects appropriate traversal depth.
 
-**Use case:** Ask the AI to "generate a sequence diagram", "create a class diagram", or "draw a call graph" for a specific feature.
+Generates Mermaid diagrams (class diagrams or dependency flow graphs) for a given symbol. Prefers concrete implementations over interfaces when selecting root nodes and sanitizes all labels for valid Mermaid syntax.
+
+Useful for visualizing architecture, inheritance trees, or call graphs.
 
 ---
 
-## 🗣️ Supported Languages
+## Supported languages
 
-### Dedicated Parsers (Deep Analysis)
+### Dedicated parsers
 
-| Language | Parser Engine | Nodes Extracted |
-|----------|--------------|----------------|
-| **C#** | Roslyn (`Microsoft.CodeAnalysis.CSharp`) | Files, namespaces, classes, interfaces, enums, structs, records, methods, properties, inheritance |
-| **XAML** | `System.Xml.Linq` | Files, XamlView (x:Class), XamlResource (x:Name), ViewModel bindings |
-| **JavaScript** | Node.js regex | Files, functions, classes, imports, Angular decorators |
-| **TypeScript** | Node.js regex | Files, functions, classes, imports |
-| **Angular** | Node.js regex | Files, components, injectables, NgModules |
-| **.csproj/.sln** | `System.Xml.Linq` | Files, package references, project references |
-| **Markdown** | Line parser | Files, document sections (headings) |
+| Language | Parser | What it extracts |
+|----------|--------|-----------------|
+| C# | Roslyn | Files, namespaces, classes, interfaces, enums, structs, records, methods, properties, inheritance |
+| XAML | System.Xml.Linq | Files, views (x:Class), resources (x:Name), ViewModel bindings |
+| JavaScript | Node.js | Files, functions, classes, imports, Angular decorators |
+| TypeScript | Node.js | Files, functions, classes, imports |
+| Angular | Node.js | Files, components, injectables, NgModules |
+| .csproj/.sln | System.Xml.Linq | Files, package refs, project refs |
+| Markdown | Line parser | Files, document sections |
 
-### Regex-Based Parsers (Structural Analysis)
+### Regex-based parsers
 
 | Language | Extensions | Extracts |
 |----------|-----------|----------|
-| **Java** | `.java` | Classes, interfaces, enums, records, methods, imports, packages, inheritance |
-| **Kotlin** | `.kt`, `.kts` | Classes, interfaces, enums, objects, functions, imports, packages |
-| **Swift** | `.swift` | Classes, structs, protocols, enums, functions, imports |
-| **C** | `.c`, `.h` | Structs, enums, functions, `#include` |
-| **C++** | `.cpp`, `.cc`, `.cxx`, `.hpp` | Classes, structs, enums, functions, namespaces, `#include`, inheritance |
-| **Objective-C** | `.m`, `.mm` | Interfaces, implementations, protocols, methods, `#import` |
-| **PHP** | `.php` | Classes, interfaces, traits, enums, functions, namespaces, `use` |
-| **Go** | `.go` | Structs, interfaces, functions, packages, imports |
-| **Rust** | `.rs` | Structs, enums, traits, functions, modules, `use` |
-| **Python** | `.py` | Classes, functions, imports |
-| **Ruby** | `.rb` | Classes, modules, methods, `require` |
-| **Dart** | `.dart` | Classes, enums, mixins, functions, imports |
-| **SQL** | `.sql` | Tables (`CREATE TABLE`), procedures, views, functions |
-| **HTML** | `.html`, `.htm` | Script/style references |
-| **CSS/SCSS** | `.css`, `.scss` | `@import` references |
-| **Shell** | `.sh`, `.bash`, `.zsh` | Functions, `source` includes |
-| **YAML** | `.yaml`, `.yml` | Top-level configuration keys |
-| **JSON** | `.json` | File tracking (config detection) |
+| Java | `.java` | Classes, interfaces, enums, records, methods, imports, packages, inheritance |
+| Kotlin | `.kt`, `.kts` | Classes, interfaces, enums, objects, functions, imports, packages |
+| Swift | `.swift` | Classes, structs, protocols, enums, functions, imports |
+| C | `.c`, `.h` | Structs, enums, functions, `#include` |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp` | Classes, structs, enums, functions, namespaces, `#include`, inheritance |
+| Objective-C | `.m`, `.mm` | Interfaces, implementations, protocols, methods, `#import` |
+| PHP | `.php` | Classes, interfaces, traits, enums, functions, namespaces, `use` |
+| Go | `.go` | Structs, interfaces, functions, packages, imports |
+| Rust | `.rs` | Structs, enums, traits, functions, modules, `use` |
+| Python | `.py` | Classes, functions, imports |
+| Ruby | `.rb` | Classes, modules, methods, `require` |
+| Dart | `.dart` | Classes, enums, mixins, functions, imports |
+| SQL | `.sql` | Tables, procedures, views, functions |
+| HTML | `.html`, `.htm` | Script/style references |
+| CSS/SCSS | `.css`, `.scss` | `@import` references |
+| Shell | `.sh`, `.bash`, `.zsh` | Functions, `source` includes |
+| YAML | `.yaml`, `.yml` | Top-level config keys |
+| JSON | `.json` | File tracking (config detection) |
 
 ---
 
-## 🔌 Client Configuration
+## Client configuration
 
-The best way to use CodeGraphMcp is to download the standalone executable for your OS (Windows `.exe`, macOS, Linux) from the [Releases page](../../releases). **Using the standalone binary does not require the .NET SDK.**
-
-If you are using the downloaded executable, the `command` is simply the path to the executable file, and `args` is the path to the codebase.
+The easiest approach is to download the standalone binary from the [Releases page](../../releases) — no .NET SDK required. Point it at your repo and configure your AI editor to connect.
 
 ### Claude Desktop
 
@@ -208,37 +192,25 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "codegraph": {
-      "command": "/absolute/path/to/CodeGraphMcp",
-      "args": ["/absolute/path/to/your/repo"],
+      "command": "/path/to/CodeGraphMcp",
+      "args": ["/path/to/your/repo"],
       "env": {}
     }
   }
 }
 ```
 
-*(If building from source, set `command` to `"dotnet"` and `args` to `["run", "--project", "/path/to/src/CodeGraphMcp", "--", "/path/to/repo"]`)*
-
-```json
-{
-  "mcpServers": {
-    "codegraph": {
-      "command": "/absolute/path/to/publish/CodeGraphMcp",
-      "args": ["/absolute/path/to/your/repo"],
-      "env": {}
-    }
-  }
-}
-```
+If building from source, use `"command": "dotnet"` and `"args": ["run", "--project", "/path/to/src/CodeGraphMcp", "--", "/path/to/repo"]`.
 
 ### Cursor
 
-Place `.cursor/mcp.json` in the root of the repository Cursor has open:
+Place `.cursor/mcp.json` in the repository root:
 
 ```json
 {
   "mcpServers": {
     "codegraph": {
-      "command": "/absolute/path/to/CodeGraphMcp",
+      "command": "/path/to/CodeGraphMcp",
       "args": ["${workspaceFolder}"]
     }
   }
@@ -247,14 +219,14 @@ Place `.cursor/mcp.json` in the root of the repository Cursor has open:
 
 ### GitHub Copilot (VS Code)
 
-GitHub Copilot supports MCP servers via the VS Code MCP extension. Add to your VS Code `settings.json`:
+Add to your VS Code `settings.json`:
 
 ```json
 {
   "mcp": {
     "servers": {
       "codegraph": {
-        "command": "/absolute/path/to/CodeGraphMcp",
+        "command": "/path/to/CodeGraphMcp",
         "args": ["${workspaceFolder}"]
       }
     }
@@ -262,14 +234,14 @@ GitHub Copilot supports MCP servers via the VS Code MCP extension. Add to your V
 }
 ```
 
-> **Tip:** After configuring, Copilot Chat will automatically discover the MCP tools. You can ask it to use `GetSystemPrompt` at the start of conversations for instant repository context.
+After configuring, Copilot Chat will discover the tools automatically. Try asking it to call `GetSystemPrompt` at the start of a conversation.
 
-### Visual Studio (2022 and 2026)
+### Visual Studio (2022 / 2026)
 
-Visual Studio 2022 (v17.13+) and Visual Studio 2026 have built-in support for MCP tools in GitHub Copilot. 
+Visual Studio 2022 (v17.13+) and Visual Studio 2026 support MCP tools in Copilot natively.
 
-1. Go to **Tools > Options > GitHub > Copilot > MCP Servers** (or edit `mcp.json` in your VS configuration).
-2. Add the CodeGraphMcp server:
+1. Go to **Tools > Options > GitHub > Copilot > MCP Servers** (or edit `mcp.json`).
+2. Add:
 
 ```json
 {
@@ -282,207 +254,191 @@ Visual Studio 2022 (v17.13+) and Visual Studio 2026 have built-in support for MC
 }
 ```
 
-3. Open the Copilot Chat window and ask it to analyze your solution using the CodeGraph tools.
+### Other clients (Windsurf, Cline, etc.)
 
-### Windsurf / Cline / Other MCP Clients
-
-Any MCP-compatible client can connect using the stdio transport. The command format is the same:
+Any MCP client can connect via stdio:
 
 ```bash
 /path/to/CodeGraphMcp /path/to/your/repo
 ```
 
-The server communicates via JSON-RPC on stdin/stdout (MCP protocol) and logs to stderr.
+The server uses JSON-RPC on stdin/stdout and logs to stderr.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 CodeGraphMcp/
 ├── src/
 │   ├── CodeGraphMcp/                    # Main executable + MCP server
-│   │   ├── Program.cs                   # Entry point + graceful shutdown
-│   │   ├── Mcp/Tools/                   # 5 MCP tool endpoints
-│   │   ├── Watcher/                     # FileSystemWatcher + 800ms debounce
+│   │   ├── Program.cs                   # Entry point, graceful shutdown
+│   │   ├── Mcp/Tools/                   # 5 tool endpoints
+│   │   ├── Watcher/                     # FileSystemWatcher + debounce
 │   │   └── Startup/                     # DI registration for 25+ parsers
 │   ├── CodeGraphMcp.Core/              # Domain + graph logic
-│   │   ├── Domain/                      # CodeNode, CodeEdge, Language, NodeKind, RelationKind
-│   │   ├── Scanning/                    # Repository file discovery + hashing
-│   │   ├── Parsing/                     # 25+ language parsers (Roslyn, regex, Node.js)
-│   │   ├── Graph/                       # SQLite graph store (WAL mode)
-│   │   ├── Orchestration/               # Full build + incremental rebuild
-│   │   ├── Context/                     # System prompt builder (4K token budget)
+│   │   ├── Domain/                      # CodeNode, CodeEdge, enums
+│   │   ├── Scanning/                    # File discovery + hashing
+│   │   ├── Parsing/                     # 25+ language parsers
+│   │   ├── Graph/                       # SQLite graph store (WAL)
+│   │   ├── Orchestration/               # Full + incremental builds
+│   │   ├── Context/                     # System prompt builder
 │   │   └── Utilities/                   # Language detection, token estimation
-│   └── CodeGraphMcp.Tests/             # Integration tests (5 tests)
+│   └── CodeGraphMcp.Tests/             # Integration tests
 └── scripts/
-    └── parse-js.mjs                     # Node.js JS/TS parser script
+    └── parse-js.mjs                     # Node.js parser for JS/TS
 ```
 
-### How It Works
+How it works:
 
 ```
-                  ┌─────────────┐
-                  │  Repository │
-                  └──────┬──────┘
-                         │ scan
-                  ┌──────▼──────┐
-                  │  Scanner    │  Discovers tracked files, computes hashes
-                  └──────┬──────┘
-                         │ files
-              ┌──────────▼──────────┐
-              │  Language Parsers   │  25+ parsers extract nodes + edges
-              │  (C#, Java, Go...) │  from each file concurrently (8 max)
-              └──────────┬──────────┘
-                         │ nodes, edges
-                  ┌──────▼──────┐
-                  │ Graph Store │  SQLite DB with WAL mode
-                  │ (SQLite)    │  Upsert, query, delete by file
-                  └──────┬──────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-   ┌──────▼──────┐ ┌────▼────┐ ┌──────▼──────┐
-   │ MCP Tools   │ │ Watcher │ │  System     │
-   │ (4 tools)   │ │ (800ms  │ │  Prompt     │
-   │ stdio JSON  │ │ debounce)│ │  Builder    │
-   └─────────────┘ └─────────┘ └─────────────┘
+               ┌─────────────┐
+               │  Repository │
+               └──────┬──────┘
+                      │ scan
+               ┌──────▼──────┐
+               │  Scanner    │  Discovers files, computes hashes
+               └──────┬──────┘
+                      │
+           ┌──────────▼──────────┐
+           │  Language Parsers   │  25+ parsers, 8 files in parallel
+           └──────────┬──────────┘
+                      │
+               ┌──────▼──────┐
+               │ Graph Store │  SQLite with WAL mode
+               └──────┬──────┘
+                      │
+       ┌──────────────┼──────────────┐
+       │              │              │
+┌──────▼──────┐ ┌────▼────┐ ┌──────▼──────┐
+│ MCP Tools   │ │ Watcher │ │  Prompt     │
+│ (5 tools)   │ │ (800ms) │ │  Builder    │
+└─────────────┘ └─────────┘ └─────────────┘
 ```
 
-### Design Constraints
+Design constraints:
 
 | Constraint | Value |
 |------------|-------|
 | Runtime | .NET 10 |
 | Transport | stdio (MCP standard) |
-| Graph storage | SQLite (WAL mode) |
-| Debounce window | 800 ms |
-| Max parser concurrency | 8 files in parallel |
-| Max graph context tokens | 80,000 (configurable) |
+| Storage | SQLite (WAL mode) |
+| Debounce | 800ms |
+| Parser concurrency | 8 files |
+| Max graph tokens | 80,000 (configurable) |
 | System prompt budget | 4,000 tokens |
 
 ---
 
-## 🔄 How AI Editors Benefit
+## How AI editors benefit
 
-### Before CodeGraphMcp
-
-```
-Developer: "Add a new payment method to the checkout flow"
-
-AI: *reads 50 files trying to understand the codebase* (100K+ tokens)
-    *misses the PaymentService class in a different module*
-    *doesn't know about the IPaymentGateway interface*
-    *generates code with wrong imports and missing dependencies*
-```
-
-### After CodeGraphMcp
+Without CodeGraphMcp:
 
 ```
 Developer: "Add a new payment method to the checkout flow"
 
-AI: *calls GetSystemPrompt* (3,500 tokens → knows entire repo structure)
-    *calls GetSymbol("Payment")* → finds PaymentService, IPaymentGateway, PaymentController
-    *calls GetFileContext("PaymentService.cs")* → sees all connected types + edges
-    *generates correct code with proper imports, interfaces, and dependency injection*
+AI: reads 50 files trying to understand the codebase (100K+ tokens)
+    misses the PaymentService in a different module
+    doesn't know about IPaymentGateway
+    generates code with wrong imports and missing dependencies
 ```
 
-### Key Benefits
+With CodeGraphMcp:
 
-1. **Faster responses** — AI doesn't need to read hundreds of files; the graph provides instant structural context
-2. **Better accuracy** — The AI knows about inheritance, imports, and dependencies before writing code
-3. **Lower cost** — 90-96% token reduction means significantly lower API costs for cloud-hosted AI
-4. **Always current** — The file watcher keeps the graph up-to-date as you code, with 800ms debounce
-5. **Works offline** — Everything runs locally; no data leaves your machine
-6. **Universal** — Works with any MCP-compatible AI agent: Claude, Cursor, Copilot, Windsurf, Cline
+```
+Developer: "Add a new payment method to the checkout flow"
 
----
+AI: calls GetSystemPrompt → knows entire repo structure (3,500 tokens)
+    calls GetSymbol("Payment") → finds PaymentService, IPaymentGateway, PaymentController
+    calls GetFileContext("PaymentService.cs") → sees all connected types
+    generates correct code with proper imports and dependency injection
+```
 
-## 💡 Prompting Guide & Best Practices
+The main benefits:
 
-Once you have configured CodeGraphMcp with your AI editor (Cursor, Copilot, Claude), you can use it to perform complex, repository-wide tasks without blowing up your token limits. Here are the best ways to prompt the AI using the graph.
-
-### 1. The "Start of Conversation" Anchor
-Always give the AI the bird's-eye view first. This allows it to understand the architecture before writing a single line of code.
-
-**Prompt:**
-> "Please call the `GetSystemPrompt` tool to understand the structure of this repository. I want to build a new feature."
-
-*Why it works:* `GetSystemPrompt` returns a compact (~4,000 token) index of your entry points, file map, and core symbols. The AI instantly learns your naming conventions, what languages are used, and where the core modules live.
-
-### 2. Large-Scale Refactoring & Migrations (e.g., Xamarin to MAUI)
-When migrating codebases, the AI needs to know how UI views map to logic, and where platform-specific code lives.
-
-**Prompt:**
-> "We are migrating this app from Xamarin.Forms to .NET MAUI.
-> 1. Use `GetCodeGraph` to find all XAML files and their corresponding ViewModels.
-> 2. Use `GetFileContext` on `App.xaml.cs` to trace the dependency injection setup.
-> 3. Generate a migration plan mapping the old `DependencyService` calls to the new MAUI `MauiProgram.cs` DI container."
-
-*Why it works:* Instead of opening 30 files manually, the AI queries the graph for `binds` edges (View ↔ ViewModel) and `dependsOn` edges, allowing it to accurately update references.
-
-### 3. Adding a New Feature (Vertical Slice)
-When adding a feature that touches the database, API, and UI.
-
-**Prompt:**
-> "I need to add a 'User Profile' feature. 
-> Use `GetSymbol` to find the `UserRepository` interface and the `UserController`. 
-> Then, use `GetFileContext` to see what services the `UserController` depends on. 
-> Finally, write the code for the new `UpdateProfile` endpoint, ensuring you follow the existing dependency injection patterns."
-
-*Why it works:* `GetSymbol` instantly locates the files regardless of folder structure. The AI sees the edges attached to `UserController` and knows exactly which services to inject.
-
-### 4. Debugging Cross-Module Issues
-When a bug spans multiple files (e.g., an event fired in the UI but handled in a background service).
-
-**Prompt:**
-> "There is a bug where the 'Order Placed' event is not updating the inventory. 
-> 1. Use `GetSymbol` to find the `OrderPlacedEvent`.
-> 2. Look at the edges to see what classes implement or handle this event.
-> 3. Read the relevant files and suggest a fix."
-
-*Why it works:* The graph contains `references` and `implements` edges. The AI doesn't need to text-search the entire repo; it simply traverses the graph from the Event node to the Handler node.
-
-### 5. Onboarding to a New Codebase
-When you join a new project and need to understand the flow.
-
-**Prompt:**
-> "I am new to this codebase. Use `GetCodeGraph` and `GetSystemPrompt` to analyze the architecture. Give me a 5-bullet summary of how the frontend communicates with the backend, and list the top 3 most important classes I should read first."
-
-*Why it works:* CodeGraphMcp ranks nodes by connectivity (number of edges). The AI easily identifies the core orchestration classes and controllers without blindly reading utility files.
+1. **Faster** — the AI doesn't read hundreds of files; the graph gives it structural context instantly
+2. **More accurate** — it knows about inheritance, imports, and dependencies before writing anything
+3. **Cheaper** — 90–96% fewer tokens per request
+4. **Live** — file watcher keeps the graph current as you code
+5. **Private** — everything runs locally, nothing leaves your machine
+6. **Works everywhere** — any MCP-compatible agent (Claude, Cursor, Copilot, Windsurf, Cline)
 
 ---
 
-## 📦 NuGet Dependencies
+## Prompting guide
+
+Once CodeGraphMcp is connected to your AI editor, here are some effective ways to use it.
+
+### Start of conversation
+
+Give the AI the big picture first:
+
+> "Call `GetSystemPrompt` to understand this repository. I want to build a new feature."
+
+This returns ~4,000 tokens covering entry points, file map, and symbols. The AI immediately knows your naming conventions, languages, and where things live.
+
+### Large-scale migrations (e.g. Xamarin to MAUI)
+
+> "We're migrating from Xamarin.Forms to .NET MAUI.
+> 1. Use `GetCodeGraph` to find all XAML files and their ViewModels.
+> 2. Use `GetFileContext` on `App.xaml.cs` to trace the DI setup.
+> 3. Generate a migration plan mapping `DependencyService` calls to `MauiProgram.cs`."
+
+The graph's `binds` edges connect Views to ViewModels directly, and `dependsOn` edges trace project references — no need to open 30 files.
+
+### Adding a feature
+
+> "I need a 'User Profile' feature. Find `UserRepository` and `UserController` with `GetSymbol`, then use `GetFileContext` on the controller to see its dependencies. Write the `UpdateProfile` endpoint following existing DI patterns."
+
+`GetSymbol` locates files regardless of folder structure. The edges show exactly which services to inject.
+
+### Debugging across modules
+
+> "The 'Order Placed' event isn't updating inventory.
+> 1. `GetSymbol` for `OrderPlacedEvent`.
+> 2. Check edges for handlers/implementors.
+> 3. Suggest a fix."
+
+The graph has `references` and `implements` edges, so the AI traverses from event to handler without text-searching the whole repo.
+
+### Onboarding
+
+> "I'm new here. Use `GetCodeGraph` and `GetSystemPrompt` to summarize the architecture. What are the top 3 classes to read first?"
+
+Nodes are ranked by connectivity, so the AI finds the core orchestrators and controllers immediately.
+
+---
+
+## Dependencies
 
 | Package | Version | Project |
 |---------|---------|---------|
-| `ModelContextProtocol` | 0.2.0-preview.1 | CodeGraphMcp |
-| `Microsoft.Extensions.Hosting` | 10.0.0 | CodeGraphMcp |
-| `Microsoft.Extensions.Logging.Console` | 10.0.0 | CodeGraphMcp |
-| `Microsoft.CodeAnalysis.CSharp` | 4.11.0 | CodeGraphMcp.Core |
-| `Microsoft.Data.Sqlite` | 9.0.0 | CodeGraphMcp.Core |
-| `Microsoft.Extensions.Logging.Abstractions` | 10.0.0 | CodeGraphMcp.Core |
+| ModelContextProtocol | 0.2.0-preview.1 | CodeGraphMcp |
+| Microsoft.Extensions.Hosting | 10.0.0 | CodeGraphMcp |
+| Microsoft.Extensions.Logging.Console | 10.0.0 | CodeGraphMcp |
+| Microsoft.CodeAnalysis.CSharp | 4.11.0 | CodeGraphMcp.Core |
+| Microsoft.Data.Sqlite | 9.0.0 | CodeGraphMcp.Core |
+| Microsoft.Extensions.Logging.Abstractions | 10.0.0 | CodeGraphMcp.Core |
 
 ---
 
-## 🏷️ Releases
+## Releases
 
-Pre-built binaries are available for every tagged release on the [Releases page](../../releases). Supported platforms:
+Pre-built binaries are available on the [Releases page](../../releases):
 
-- **Linux x64** (`codegraph-mcp-linux-x64.tar.gz`)
-- **macOS ARM64** (`codegraph-mcp-osx-arm64.tar.gz`)
-- **Windows x64** (`codegraph-mcp-win-x64.zip`)
+- Linux x64 — `codegraph-mcp-linux-x64.tar.gz`
+- macOS ARM64 — `codegraph-mcp-osx-arm64.tar.gz`
+- Windows x64 — `codegraph-mcp-win-x64.zip`
 
-To create a new release:
+To cut a new release:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 ---
 
-## 📄 License
+## License
 
 This project is provided as-is for personal and commercial use.
