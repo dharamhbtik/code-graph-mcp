@@ -74,7 +74,7 @@ CodeGraphMcp automatically adapts to your token budget:
 - **Code graph construction** — Nodes (files, classes, methods, functions, interfaces, structs, enums) and edges (calls, imports, inherits, implements, references, binds)
 - **SQLite storage** — Persistent, fast graph storage with WAL mode for concurrent access
 - **Real-time file watching** — Automatically detects file changes and incrementally patches the graph (800ms debounce)
-- **4 MCP tool endpoints** — Query the repository structure from any MCP-compatible AI agent
+- **5 MCP tool endpoints** — Query the repository structure from any MCP-compatible AI agent
 - **System prompt builder** — Generates a compact, token-budgeted context block for AI agents
 - **Self-contained binaries** — Publish for Linux, macOS, or Windows without requiring .NET runtime
 
@@ -126,32 +126,32 @@ dotnet publish src/CodeGraphMcp -c Release -o ./publish
 
 ## 🔧 MCP Tools
 
-The server exposes four tools via the MCP protocol:
+The server exposes five tools via the MCP protocol:
 
 ### `GetCodeGraph`
-Returns the full repository code graph as compact JSON. Supports a `maxTokens` budget parameter (default 80,000). If the graph exceeds the budget, it automatically returns a compressed summary with file lists and top edges only.
+Returns the full repository code graph as compact JSON. Supports a `maxTokens` budget parameter (default 80,000). If the graph exceeds the budget, it automatically returns a **compressed summary** that preserves type nodes (classes, interfaces, methods) with relative paths and human-readable edge names — not just a file list.
 
 **Use case:** Give the AI a complete structural understanding of the codebase in one call.
 
 ### `GetFileContext`
-Returns all nodes and edges for a specific file path, with BFS traversal up to `hopDepth` hops away (default 2). This surfaces not just the file's own symbols, but also connected classes, interfaces, and dependencies.
+Returns all nodes and edges for a specific file path, with BFS traversal up to `hopDepth` hops away (default 2). **Accepts both relative and absolute paths.** Returns full details of connected nodes (not just IDs), grouped by kind, with human-readable relationship descriptions. Uses batch SQL queries for performance.
 
 **Use case:** When the AI is about to edit a file, give it full context of what that file connects to.
 
 ### `GetSymbol`
-Searches for a symbol by name (partial match, case-insensitive) and returns definitions, file locations, edges, and code snippets (±5 lines of context).
+Searches for a symbol by name (partial match, case-insensitive) and returns definitions, file locations, incoming/outgoing connections with resolved names, and accurate code snippets covering the full symbol definition (capped at 30 lines).
 
 **Use case:** The AI needs to find where a class, function, or interface is defined and what depends on it.
 
 ### `GetSystemPrompt`
-Returns a compact markdown context block describing the repository — key entry points, file map, and symbol index — within a 4,000 token budget. Designed to be included in the system prompt at the start of every conversation.
+Returns a compact markdown context block describing the repository — key entry points (ranked by total connectivity), key dependency chains (inheritance/implements), file map, and symbol index — within a 4,000 token budget.
 
 **Use case:** Give every AI conversation baseline knowledge of the repository structure without burning tokens.
 
 ### `GenerateDesignDocument`
-Generates a markdown document containing Mermaid diagrams (`class` or `flow`) to help visualize the codebase architecture, inheritance, and dependency chains.
+Generates a markdown document containing valid Mermaid diagrams (`class` or `flow`) to visualize codebase architecture, inheritance, and dependency chains. Prefers concrete implementations over interfaces when selecting root nodes, sanitizes all labels for valid Mermaid syntax, and auto-selects appropriate traversal depth.
 
-**Use case:** Ask the AI to "generate a sequence diagram", "create a class diagram", or "draw a call graph" for a specific feature. The AI will output a renderable Mermaid chart mapping the exact dependencies.
+**Use case:** Ask the AI to "generate a sequence diagram", "create a class diagram", or "draw a call graph" for a specific feature.
 
 ---
 
@@ -303,7 +303,7 @@ CodeGraphMcp/
 ├── src/
 │   ├── CodeGraphMcp/                    # Main executable + MCP server
 │   │   ├── Program.cs                   # Entry point + graceful shutdown
-│   │   ├── Mcp/Tools/                   # 4 MCP tool endpoints
+│   │   ├── Mcp/Tools/                   # 5 MCP tool endpoints
 │   │   ├── Watcher/                     # FileSystemWatcher + 800ms debounce
 │   │   └── Startup/                     # DI registration for 25+ parsers
 │   ├── CodeGraphMcp.Core/              # Domain + graph logic

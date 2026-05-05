@@ -338,5 +338,135 @@ public sealed class GraphStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Resolves a relative or partial file path against stored absolute paths.
+    /// Returns the matching absolute path, or the original if no match is found.
+    /// </summary>
+    public string ResolveFilePath(string inputPath)
+    {
+        // If the file exists at the given path, it's already absolute
+        if (File.Exists(inputPath))
+            return Path.GetFullPath(inputPath);
+
+        lock (_dbLock)
+        {
+            using var cmd = _conn.CreateCommand();
+            // Suffix match: find stored paths ending with the given relative path
+            cmd.CommandText = """
+                SELECT file_path FROM nodes
+                WHERE file_path LIKE @suffix COLLATE NOCASE
+                GROUP BY file_path
+                LIMIT 1
+                """;
+            // Normalize separators and ensure leading separator for suffix match
+            var normalized = inputPath.Replace('\\', '/');
+            cmd.Parameters.AddWithValue("@suffix", $"%/{normalized}");
+            var result = cmd.ExecuteScalar();
+            return result as string ?? inputPath;
+        }
+    }
+
+    /// <summary>
+    /// Batch-loads edges for multiple node IDs in a single query.
+    /// Eliminates the N+1 pattern of calling GetEdgesForNode per node.
+    /// </summary>
+    public List<CodeEdge> GetEdgesForNodes(IReadOnlyCollection<string> nodeIds)
+    {
+        if (nodeIds.Count == 0) return [];
+
+        lock (_dbLock)
+        {
+            var edges = new List<CodeEdge>();
+            // SQLite parameter limit is typically 999; chunk if needed
+            foreach (var chunk in ChunkCollection(nodeIds, 500))
+            {
+                using var cmd = _conn.CreateCommand();
+                var placeholders = new List<string>();
+                for (int i = 0; i < chunk.Count; i++)
+                {
+                    var paramName = $"@id{i}";
+                    placeholders.Add(paramName);
+                    cmd.Parameters.AddWithValue(paramName, chunk[i]);
+                }
+                var inClause = string.Join(",", placeholders);
+                cmd.CommandText = $"SELECT id,source_id,target_id,kind,weight FROM edges WHERE source_id IN ({inClause}) OR target_id IN ({inClause})";
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    edges.Add(new CodeEdge
+                    {
+                        Id       = r.GetString(0),
+                        SourceId = r.GetString(1),
+                        TargetId = r.GetString(2),
+                        Kind     = Enum.Parse<RelationKind>(r.GetString(3)),
+                        Weight   = (float)r.GetDouble(4),
+                    });
+                }
+            }
+            return edges;
+        }
+    }
+
+    /// <summary>
+    /// Batch-loads nodes by their IDs in a single query.
+    /// Used to resolve SHA hash IDs to human-readable node data.
+    /// </summary>
+    public List<CodeNode> GetNodesByIds(IReadOnlyCollection<string> nodeIds)
+    {
+        if (nodeIds.Count == 0) return [];
+
+        lock (_dbLock)
+        {
+            var nodes = new List<CodeNode>();
+            foreach (var chunk in ChunkCollection(nodeIds, 500))
+            {
+                using var cmd = _conn.CreateCommand();
+                var placeholders = new List<string>();
+                for (int i = 0; i < chunk.Count; i++)
+                {
+                    var paramName = $"@id{i}";
+                    placeholders.Add(paramName);
+                    cmd.Parameters.AddWithValue(paramName, chunk[i]);
+                }
+                var inClause = string.Join(",", placeholders);
+                cmd.CommandText = $"SELECT id,kind,name,full_name,file_path,language,start_line,end_line,summary FROM nodes WHERE id IN ({inClause})";
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    nodes.Add(new CodeNode
+                    {
+                        Id        = r.GetString(0),
+                        Kind      = Enum.Parse<NodeKind>(r.GetString(1)),
+                        Name      = r.GetString(2),
+                        FullName  = r.GetString(3),
+                        FilePath  = r.GetString(4),
+                        Language  = Enum.Parse<Language>(r.GetString(5)),
+                        StartLine = r.GetInt32(6),
+                        EndLine   = r.GetInt32(7),
+                        Summary   = r.IsDBNull(8) ? null : r.GetString(8),
+                    });
+                }
+            }
+            return nodes;
+        }
+    }
+
+    private static List<List<T>> ChunkCollection<T>(IReadOnlyCollection<T> source, int chunkSize)
+    {
+        var chunks = new List<List<T>>();
+        var current = new List<T>(chunkSize);
+        foreach (var item in source)
+        {
+            current.Add(item);
+            if (current.Count >= chunkSize)
+            {
+                chunks.Add(current);
+                current = new List<T>(chunkSize);
+            }
+        }
+        if (current.Count > 0) chunks.Add(current);
+        return chunks;
+    }
+
     public void Dispose() => _conn.Dispose();
 }
